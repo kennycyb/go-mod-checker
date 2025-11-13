@@ -88,8 +88,10 @@ class ModuleChecker:
         Returns:
             Tuple of (status, latest_version) where status is 'ARCHIVED', 'OUTDATED', or 'OK'
         """
-        # Check if module is on GitHub
-        if module.name.startswith('github.com/'):
+        # Check if module is on GitHub by validating the full path structure
+        # Go module paths on GitHub always have the format: github.com/owner/repo[/subpath]
+        parts = module.name.split('/')
+        if len(parts) >= 3 and parts[0] == 'github.com':
             return self._check_github_module(module)
         else:
             # For non-GitHub modules, use Go proxy
