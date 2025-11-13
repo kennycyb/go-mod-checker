@@ -35,6 +35,12 @@ go-mod-checker = "go_mod_checker.cli:main"
 Homepage = "https://github.com/kennycyb/go-mod-checker"
 Repository = "https://github.com/kennycyb/go-mod-checker"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["go_mod_checker*"]
