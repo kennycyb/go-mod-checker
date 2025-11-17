@@ -3,7 +3,6 @@
 import pytest
 import tempfile
 import os
-from pathlib import Path
 
 from go_mod_checker.checker import GoModParser
 
