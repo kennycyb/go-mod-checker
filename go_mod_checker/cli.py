@@ -64,15 +64,12 @@ def main():
         status, latest_version = checker.check_module(module)
         
         if status == 'ARCHIVED':
-            color = Fore.RED
             status_text = f"{Fore.RED}ARCHIVED{Style.RESET_ALL}"
             archived_count += 1
         elif status == 'OUTDATED':
-            color = Fore.YELLOW
             status_text = f"{Fore.YELLOW}OUTDATED{Style.RESET_ALL} (latest: {latest_version})"
             outdated_count += 1
         else:  # OK
-            color = Fore.GREEN
             status_text = f"{Fore.GREEN}OK{Style.RESET_ALL}"
             ok_count += 1
         
