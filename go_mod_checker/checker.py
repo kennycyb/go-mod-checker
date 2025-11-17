@@ -101,8 +101,6 @@ class ModuleChecker:
         """Check GitHub-hosted module status."""
         # Extract owner and repo from module name
         parts = module.name.split('/')
-        if len(parts) < 3:
-            return 'OK', None
         
         owner = parts[1]
         repo = parts[2]
