@@ -5,7 +5,7 @@ import tempfile
 import os
 from pathlib import Path
 
-from go_mod_checker.checker import GoModParser, Module
+from go_mod_checker.checker import GoModParser
 
 
 def test_parser_with_simple_require():
