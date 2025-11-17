@@ -26,7 +26,7 @@ class GoModParser:
         modules = []
         
         try:
-            with open(self.filepath, 'r') as f:
+            with open(self.filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
         except FileNotFoundError:
             raise FileNotFoundError(f"go.mod file not found at {self.filepath}")
