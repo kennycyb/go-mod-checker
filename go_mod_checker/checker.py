@@ -143,8 +143,13 @@ class ModuleChecker:
         try:
             response = self.session.get(proxy_url, timeout=10)
             if response.status_code == 200:
-                data = response.json()
-                return data.get('Version')
+                content_type = response.headers.get('content-type', '')
+                if 'application/json' in content_type:
+                    try:
+                        data = response.json()
+                        return data.get('Version')
+                    except ValueError:
+                        pass  # Invalid JSON
         except requests.RequestException:
             pass
         
