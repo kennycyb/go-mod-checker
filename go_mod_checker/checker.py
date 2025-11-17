@@ -149,6 +149,7 @@ class ModuleChecker:
                     except ValueError:
                         pass  # Invalid JSON
         except requests.RequestException:
+            # Network error or invalid response; unable to fetch latest version, so return None.
             pass
         
         return None
