@@ -49,7 +49,7 @@ def main():
     
     if not modules:
         print(f"{Fore.YELLOW}No direct dependencies found in go.mod{Style.RESET_ALL}")
-        return
+        sys.exit(0)
     
     # Check each module
     checker = ModuleChecker()

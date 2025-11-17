@@ -1,5 +1,6 @@
 """Module for parsing go.mod files and checking module status."""
 
+import os
 import re
 import requests
 from typing import List, Tuple, Optional
@@ -80,6 +81,13 @@ class ModuleChecker:
         self.session.headers.update({
             'User-Agent': 'go-mod-checker/0.1.0'
         })
+        
+        # Add GitHub token authentication if available
+        github_token = os.environ.get('GITHUB_TOKEN')
+        if github_token:
+            self.session.headers.update({
+                'Authorization': f'token {github_token}'
+            })
     
     def check_module(self, module: Module) -> Tuple[str, Optional[str]]:
         """
@@ -112,9 +120,15 @@ class ModuleChecker:
         try:
             response = self.session.get(api_url, timeout=10)
             if response.status_code == 200:
-                data = response.json()
-                if data.get('archived', False):
-                    return 'ARCHIVED', None
+                content_type = response.headers.get('content-type', '')
+                if 'application/json' in content_type:
+                    try:
+                        data = response.json()
+                        if data.get('archived', False):
+                            return 'ARCHIVED', None
+                    except ValueError:
+                        # Invalid JSON, continue to version check
+                        pass
             elif response.status_code == 404:
                 return 'ARCHIVED', None  # Repo not found, treat as archived
         except requests.RequestException:
