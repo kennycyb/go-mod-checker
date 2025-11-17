@@ -129,8 +129,8 @@ class ModuleChecker:
                     except ValueError:
                         # Invalid JSON, continue to version check
                         pass
-            elif response.status_code == 404:
-                return 'ARCHIVED', None  # Repo not found, treat as archived
+            # Note: 404 means repository not found, not necessarily archived
+            # We skip the archived check and proceed to version checking
         except requests.RequestException:
             # If we can't check, assume OK
             pass
