@@ -86,7 +86,9 @@ class ModuleChecker:
         Check if a module is archived, outdated, or OK.
         
         Returns:
-            Tuple of (status, latest_version) where status is 'ARCHIVED', 'OUTDATED', or 'OK'
+            Tuple of (status, latest_version) where:
+                - status is 'ARCHIVED', 'OUTDATED', or 'OK'
+                - latest_version is the latest available version string when status is 'OUTDATED', otherwise None
         """
         # Check if module is on GitHub by validating the full path structure
         # Go module paths on GitHub always have the format: github.com/owner/repo[/subpath]
