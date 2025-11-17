@@ -33,6 +33,17 @@ Or specify a path to a `go.mod` file:
 go-mod-checker /path/to/go.mod
 ```
 
+### GitHub Token Authentication (Optional)
+
+For repositories with many dependencies, you may hit GitHub's API rate limit (60 requests per hour for unauthenticated requests). To increase the rate limit to 5000 requests per hour, set the `GITHUB_TOKEN` environment variable with a GitHub personal access token:
+
+```bash
+export GITHUB_TOKEN=your_github_token_here
+go-mod-checker
+```
+
+You can create a personal access token at https://github.com/settings/tokens. The token doesn't need any specific scopes for public repositories.
+
 ## Example Output
 
 ```

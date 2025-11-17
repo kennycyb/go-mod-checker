@@ -5,6 +5,7 @@ import re
 import requests
 from typing import List, Tuple, Optional
 from dataclasses import dataclass
+from packaging import version
 
 
 @dataclass
@@ -107,6 +108,26 @@ class ModuleChecker:
             # For non-GitHub modules, use Go proxy
             return self._check_proxy_module(module)
     
+    def _is_version_outdated(self, current: str, latest: str) -> bool:
+        """
+        Compare two version strings to determine if current is outdated.
+        
+        Handles semantic versioning properly, including versions with 'v' prefix.
+        Returns True if latest is newer than current.
+        """
+        try:
+            # Remove 'v' prefix if present for comparison
+            current_clean = current.lstrip('v')
+            latest_clean = latest.lstrip('v')
+            
+            current_ver = version.parse(current_clean)
+            latest_ver = version.parse(latest_clean)
+            
+            return latest_ver > current_ver
+        except (version.InvalidVersion, AttributeError):
+            # Fall back to string comparison if version parsing fails
+            return latest != current
+    
     def _check_github_module(self, module: Module) -> Tuple[str, Optional[str]]:
         """Check GitHub-hosted module status."""
         # Extract owner and repo from module name
@@ -137,7 +158,7 @@ class ModuleChecker:
         
         # Check for latest version
         latest_version = self._get_latest_version(module.name)
-        if latest_version and latest_version != module.version:
+        if latest_version and self._is_version_outdated(module.version, latest_version):
             return 'OUTDATED', latest_version
         
         return 'OK', None
@@ -145,7 +166,7 @@ class ModuleChecker:
     def _check_proxy_module(self, module: Module) -> Tuple[str, Optional[str]]:
         """Check module status using Go proxy."""
         latest_version = self._get_latest_version(module.name)
-        if latest_version and latest_version != module.version:
+        if latest_version and self._is_version_outdated(module.version, latest_version):
             return 'OUTDATED', latest_version
         
         return 'OK', None
