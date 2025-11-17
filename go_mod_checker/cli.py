@@ -85,7 +85,6 @@ def main():
     if archived_count > 0 or outdated_count > 0:
         sys.exit(1)
     
-    sys.exit(0)
 
 
 if __name__ == '__main__':
