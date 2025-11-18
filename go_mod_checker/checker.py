@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from packaging import version
 
 
+# Default timeout for HTTP requests in seconds
+DEFAULT_TIMEOUT = 10
+
+
 @dataclass
 class Module:
     """Represents a Go module dependency."""
@@ -76,12 +80,18 @@ class GoModParser:
 class ModuleChecker:
     """Checker for Go module status."""
     
-    def __init__(self):
-        """Initialize the module checker."""
+    def __init__(self, timeout: int = DEFAULT_TIMEOUT):
+        """
+        Initialize the module checker.
+        
+        Args:
+            timeout: Timeout in seconds for HTTP requests (default: 10)
+        """
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'go-mod-checker/0.1.0'
         })
+        self.timeout = timeout
         
         # Add GitHub token authentication if available
         github_token = os.environ.get('GITHUB_TOKEN')
@@ -139,7 +149,7 @@ class ModuleChecker:
         # Check if repository is archived
         api_url = f"https://api.github.com/repos/{owner}/{repo}"
         try:
-            response = self.session.get(api_url, timeout=10)
+            response = self.session.get(api_url, timeout=self.timeout)
             if response.status_code == 200:
                 content_type = response.headers.get('content-type', '')
                 if 'application/json' in content_type:
@@ -176,7 +186,7 @@ class ModuleChecker:
         # Use Go proxy to get latest version
         proxy_url = f"https://proxy.golang.org/{module_name}/@latest"
         try:
-            response = self.session.get(proxy_url, timeout=10)
+            response = self.session.get(proxy_url, timeout=self.timeout)
             if response.status_code == 200:
                 content_type = response.headers.get('content-type', '')
                 if 'application/json' in content_type:
