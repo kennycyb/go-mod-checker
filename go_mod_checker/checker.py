@@ -3,8 +3,9 @@
 import os
 import re
 import requests
+from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from packaging import version
 
 
@@ -20,32 +21,42 @@ class Module:
     is_indirect: bool = False
 
 
+@dataclass
+class ModuleCheckResult:
+    """Result of checking a module's status."""
+    status: str  # 'ARCHIVED', 'OUTDATED', 'OK'
+    latest_version: Optional[str]
+    contributor_count: Optional[int] = None
+    last_updated: Optional[str] = None  # ISO date string
+    warnings: List[str] = field(default_factory=list)
+
+
 class GoModParser:
     """Parser for go.mod files."""
-    
+
     def __init__(self, filepath: str = "go.mod"):
         """Initialize the parser with a go.mod file path."""
         self.filepath = filepath
-    
+
     def parse(self) -> List[Module]:
         """Parse the go.mod file and return list of direct dependencies."""
         modules = []
-        
+
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
         except FileNotFoundError:
             raise FileNotFoundError(f"go.mod file not found at {self.filepath}")
-        
+
         # Parse require block
         in_require = False
         for line in content.split('\n'):
             line = line.strip()
-            
+
             # Skip comments
             if line.startswith('//'):
                 continue
-            
+
             # Check for require block
             if line.startswith('require ('):
                 in_require = True
@@ -53,7 +64,7 @@ class GoModParser:
             elif line == ')' and in_require:
                 in_require = False
                 continue
-            
+
             # Parse single require statement
             if line.startswith('require '):
                 match = re.match(r'require\s+(\S+)\s+(\S+)(\s+//\s*indirect)?', line)
@@ -63,7 +74,7 @@ class GoModParser:
                     is_indirect = match.group(3) is not None
                     if not is_indirect:  # Only add direct dependencies
                         modules.append(Module(name, version, is_indirect))
-            
+
             # Parse require block lines
             elif in_require:
                 match = re.match(r'(\S+)\s+(\S+)(\s+//\s*indirect)?', line)
@@ -73,17 +84,17 @@ class GoModParser:
                     is_indirect = match.group(3) is not None
                     if not is_indirect:  # Only add direct dependencies
                         modules.append(Module(name, version, is_indirect))
-        
+
         return modules
 
 
 class ModuleChecker:
     """Checker for Go module status."""
-    
+
     def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         """
         Initialize the module checker.
-        
+
         Args:
             timeout: Timeout in seconds for HTTP requests (default: 10)
         """
@@ -92,22 +103,20 @@ class ModuleChecker:
             'User-Agent': 'go-mod-checker/0.1.0'
         })
         self.timeout = timeout
-        
+
         # Add GitHub token authentication if available
         github_token = os.environ.get('GITHUB_TOKEN')
         if github_token:
             self.session.headers.update({
                 'Authorization': f'token {github_token}'
             })
-    
-    def check_module(self, module: Module) -> Tuple[str, Optional[str]]:
+
+    def check_module(self, module: Module) -> ModuleCheckResult:
         """
         Check if a module is archived, outdated, or OK.
-        
+
         Returns:
-            Tuple of (status, latest_version) where:
-                - status is 'ARCHIVED', 'OUTDATED', or 'OK'
-                - latest_version is the latest available version string when status is 'OUTDATED', otherwise None
+            ModuleCheckResult with status, latest_version, and additional info
         """
         # Check if module is on GitHub by validating the full path structure
         # Go module paths on GitHub always have the format: github.com/owner/repo[/subpath]
@@ -117,11 +126,11 @@ class ModuleChecker:
         else:
             # For non-GitHub modules, use Go proxy
             return self._check_proxy_module(module)
-    
+
     def _is_version_outdated(self, current: str, latest: str) -> bool:
         """
         Compare two version strings to determine if current is outdated.
-        
+
         Handles semantic versioning properly, including versions with 'v' prefix.
         Returns True if latest is newer than current.
         """
@@ -129,24 +138,26 @@ class ModuleChecker:
             # Remove 'v' prefix if present for comparison
             current_clean = current.lstrip('v')
             latest_clean = latest.lstrip('v')
-            
+
             current_ver = version.parse(current_clean)
             latest_ver = version.parse(latest_clean)
-            
+
             return latest_ver > current_ver
         except (version.InvalidVersion, AttributeError):
             # Fall back to string comparison if version parsing fails
             return latest != current
-    
-    def _check_github_module(self, module: Module) -> Tuple[str, Optional[str]]:
+
+    def _check_github_module(self, module: Module) -> ModuleCheckResult:
         """Check GitHub-hosted module status."""
         # Extract owner and repo from module name
         parts = module.name.split('/')
-        
+
         owner = parts[1]
         repo = parts[2]
-        
-        # Check if repository is archived
+
+        result = ModuleCheckResult(status='OK', latest_version=None)
+
+        # Get repository information
         api_url = f"https://api.github.com/repos/{owner}/{repo}"
         try:
             response = self.session.get(api_url, timeout=self.timeout)
@@ -156,7 +167,22 @@ class ModuleChecker:
                     try:
                         data = response.json()
                         if data.get('archived', False):
-                            return 'ARCHIVED', None
+                            result.status = 'ARCHIVED'
+                            return result
+
+                        # Store last updated date
+                        result.last_updated = data.get('updated_at')
+
+                        # Check if last update was more than 6 months ago
+                        if result.last_updated:
+                            try:
+                                updated_date = datetime.fromisoformat(result.last_updated.replace('Z', '+00:00'))
+                                six_months_ago = datetime.now(updated_date.tzinfo) - timedelta(days=180)
+                                if updated_date < six_months_ago:
+                                    result.warnings.append("Repository not updated in >6 months")
+                            except (ValueError, TypeError):
+                                pass  # Invalid date format, skip warning
+
                     except ValueError:
                         # Invalid JSON, continue to version check
                         pass
@@ -165,22 +191,54 @@ class ModuleChecker:
         except requests.RequestException:
             # If we can't check, assume OK
             pass
-        
+
+        # Get contributor count
+        contributors_url = f"https://api.github.com/repos/{owner}/{repo}/contributors?per_page=1"
+        try:
+            response = self.session.get(contributors_url, timeout=self.timeout)
+            if response.status_code == 200:
+                # Check Link header for pagination info to get total count
+                link_header = response.headers.get('Link', '')
+                if 'rel="last"' in link_header:
+                    # Extract total count from last page URL
+                    match = re.search(r'page=(\d+)', link_header)
+                    if match:
+                        result.contributor_count = int(match.group(1))
+                    else:
+                        # Fallback: count actual contributors in response
+                        data = response.json()
+                        result.contributor_count = len(data)
+                else:
+                    # No pagination, count the contributors
+                    data = response.json()
+                    result.contributor_count = len(data)
+
+                # Check if less than 3 contributors
+                if result.contributor_count is not None and result.contributor_count < 3:
+                    result.warnings.append(f"Repository has only {result.contributor_count} contributor(s)")
+
+        except requests.RequestException:
+            # If we can't check contributors, skip this warning
+            pass
+
         # Check for latest version
         latest_version = self._get_latest_version(module.name)
         if latest_version and self._is_version_outdated(module.version, latest_version):
-            return 'OUTDATED', latest_version
-        
-        return 'OK', None
-    
-    def _check_proxy_module(self, module: Module) -> Tuple[str, Optional[str]]:
+            result.status = 'OUTDATED'
+            result.latest_version = latest_version
+
+        return result
+
+    def _check_proxy_module(self, module: Module) -> ModuleCheckResult:
         """Check module status using Go proxy."""
+        result = ModuleCheckResult(status='OK', latest_version=None)
         latest_version = self._get_latest_version(module.name)
         if latest_version and self._is_version_outdated(module.version, latest_version):
-            return 'OUTDATED', latest_version
-        
-        return 'OK', None
-    
+            result.status = 'OUTDATED'
+            result.latest_version = latest_version
+
+        return result
+
     def _get_latest_version(self, module_name: str) -> Optional[str]:
         """Get the latest version of a module from Go proxy."""
         # Use Go proxy to get latest version
@@ -198,5 +256,5 @@ class ModuleChecker:
         except requests.RequestException:
             # Network error or invalid response; unable to fetch latest version, so return None.
             pass
-        
+
         return None

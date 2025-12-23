@@ -8,6 +8,9 @@ A command-line tool to check the status of Go module dependencies in your `go.mo
   - **ARCHIVED** (printed in red) - Repository is archived or no longer available
   - **OUTDATED** (printed in yellow) - A newer version is available
   - **OK** (printed in green) - Up to date
+- For GitHub repositories, also checks:
+  - **Low contributor count** (warning) - Repository has fewer than 3 contributors
+  - **Stale repository** (warning) - Repository hasn't been updated in more than 6 months
 - Simple and easy to use
 - Installable via pip from git
 
@@ -52,6 +55,8 @@ Checking dependencies in go.mod...
 Found 5 direct dependencies:
 
   github.com/gin-gonic/gin v1.9.0 - OK
+    ⚠ Repository has only 2 contributor(s)
+    ⚠ Repository not updated in >6 months
   github.com/stretchr/testify v1.8.0 - OUTDATED (latest: v1.8.4)
   github.com/archived/repo v1.0.0 - ARCHIVED
   golang.org/x/sync v0.1.0 - OK
