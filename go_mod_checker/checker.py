@@ -193,28 +193,23 @@ class ModuleChecker:
             pass
 
         # Get contributor count
-        contributors_url = f"https://api.github.com/repos/{owner}/{repo}/contributors?per_page=1"
+        contributors_url = f"https://api.github.com/repos/{owner}/{repo}/contributors?per_page=100"
         try:
             response = self.session.get(contributors_url, timeout=self.timeout)
             if response.status_code == 200:
-                # Check Link header for pagination info to get total count
+                data = response.json()
+                contributor_count = len(data)
+
+                # Check if there are more pages (GitHub limits to 500 contributors)
                 link_header = response.headers.get('Link', '')
-                if 'rel="last"' in link_header:
-                    # Extract total count from last page URL
-                    match = re.search(r'page=(\d+)', link_header)
-                    if match:
-                        result.contributor_count = int(match.group(1))
-                    else:
-                        # Fallback: count actual contributors in response
-                        data = response.json()
-                        result.contributor_count = len(data)
-                else:
-                    # No pagination, count the contributors
-                    data = response.json()
-                    result.contributor_count = len(data)
+                if 'rel="next"' in link_header:
+                    # There are more contributors, set to a high number to indicate many contributors
+                    contributor_count = 500  # GitHub's max
+
+                result.contributor_count = contributor_count
 
                 # Check if less than 3 contributors
-                if result.contributor_count is not None and result.contributor_count < 3:
+                if result.contributor_count < 3:
                     result.warnings.append(f"Repository has only {result.contributor_count} contributor(s)")
 
         except requests.RequestException:
